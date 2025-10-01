@@ -15,18 +15,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / 'data'
 OUTPUT_DIR = PROJECT_ROOT / 'output_xml'
 
-OUTPUT_DIR.mkdir(exist_ok=True)
-
 
 def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
     """Dump all GRIB messages to XML with values in GRIB order.
 
-    Each message becomes: <prefix>_msg_<index>.xml with:
+    Each message -> <prefix>_msg_<index>.xml like:
       <variable index="i">
         <values>v1 v2 ...</values>
       </variable>
-    Missing values are emitted as '--'. Floats use .17g precision.
-    Returns the number of files written.
+    Missing values emitted as '--'. Floats use .17g precision.
+    Returns number of files written.
     """
     outdir.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -38,7 +36,6 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
             if gid is None:
                 break
             try:
-                # Values in GRIB-defined scanning order
                 vals = np.array(codes_get_values(gid), dtype=np.float64)
 
                 # Determine missing handling
@@ -50,7 +47,7 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
                 # Best-effort bitmap (not always available)
                 bitmap_mask = None
                 try:
-                    if codes_is_defined(gid, 'bitmapPresent') and codes_get(gid, 'bitmapPresent') == 1:
+                    if codes_get(gid, 'bitmapPresent') == 1:
                         try:
                             bitmap = codes_get_array(gid, 'bitmap')
                             bitmap_mask = np.array(bitmap, dtype=bool)
@@ -62,9 +59,8 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
                 tokens = []
                 for j, v in enumerate(vals):
                     is_miss = False
-                    if mv is not None and isinstance(mv, float) and not np.isnan(mv):
-                        if v == mv:
-                            is_miss = True
+                    if mv is not None and isinstance(mv, float) and not np.isnan(mv) and v == mv:
+                        is_miss = True
                     if not is_miss and np.isnan(v):
                         is_miss = True
                     if not is_miss and bitmap_mask is not None and j < bitmap_mask.size and not bitmap_mask[j]:
@@ -92,11 +88,20 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Dump GRIB messages to XML values (full precision, GRIB order).")
-    p.add_argument('--in', dest='in_grib', type=Path, default=DATA_DIR / 'small_subset_500mb.grb2', help='Input GRIB file')
-    p.add_argument('--outdir', dest='outdir', type=Path, default=OUTPUT_DIR, help='Directory to write XML files')
-    p.add_argument('--prefix', dest='prefix', type=str, default=None, help='Filename prefix for XML (default: input basename without extension)')
+    p.add_argument('--in', dest='in_grib', type=Path, nargs='+', required=False,
+                   help='Input GRIB file(s). You can pass multiple files.')
+    p.add_argument('--outdir', dest='outdir', type=Path, default=OUTPUT_DIR,
+                   help='Directory to write XML files (all files share this directory).')
+    p.add_argument('--prefix', dest='prefix', type=str, default=None,
+                   help='Optional filename prefix override. If omitted, each file uses its own basename.')
     args = p.parse_args()
 
-    prefix = args.prefix or args.in_grib.stem
-    count = dump_grib_to_xml(args.in_grib, args.outdir, prefix)
-    print(f"XML dump summary: wrote {count} messages to {args.outdir}")
+    inputs = args.in_grib or [DATA_DIR / 'small_subset_500mb.grb2']
+
+    total_written = 0
+    for in_path in inputs:
+        prefix = args.prefix or in_path.stem
+        count = dump_grib_to_xml(in_path, args.outdir, prefix)
+        print(f"XML dump summary [{in_path.name}]: wrote {count} messages to {args.outdir} (prefix='{prefix}')")
+        total_written += count
+    print(f"DONE. Files processed: {len(inputs)} | Total messages written: {total_written}")
