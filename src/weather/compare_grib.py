@@ -65,10 +65,10 @@ def compare_grib_files(original_path, reconstructed_path):
 # Main execution
 if __name__ == "__main__":
     # Compare large files
-    compare_grib_files(
-        DATA_DIR / 'large_full_1deg.grb2',
-        DATA_DIR / 'reconstructed_large.grb2'
-    )
+    #compare_grib_files(
+    #    DATA_DIR / 'large_full_1deg.grb2',
+    #    DATA_DIR / 'reconstructed_large.grb2'
+    #)
     
     # Compare small files
     compare_grib_files(
