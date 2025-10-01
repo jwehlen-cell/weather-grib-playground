@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="grib">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="variable" maxOccurs="1">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="values" type="xs:string"/>
+              <xs:element name="lat" type="xs:string"/>
+              <xs:element name="lon" type="xs:string"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+            <xs:attribute name="date" type="xs:dateTime" use="required"/>
+            <xs:attribute name="level" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
