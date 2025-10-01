@@ -2,11 +2,10 @@
 import argparse
 import contextlib
 import os
-from pathlib import Path
-import xml.etree.ElementTree as ET
-
 # Silence ecCodes logging (must be set before importing eccodes)
 os.environ.setdefault('ECCODES_LOG_STREAM', os.devnull)
+from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import numpy as np
 from eccodes import *  # noqa: F401,F403
@@ -14,9 +13,6 @@ from eccodes import *  # noqa: F401,F403
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / 'data'
 OUTPUT_DIR = PROJECT_ROOT / 'output_xml'
-
-
-ess_errnull = open(os.devnull, 'w')
 
 
 def _read_values_from_xml(xml_path: Path) -> np.ndarray:
@@ -40,10 +36,13 @@ def _read_values_from_xml(xml_path: Path) -> np.ndarray:
     return np.fromiter((_to_float(t) for t in raw_tokens), dtype=np.float64)
 
 
+ess_errnull = open(os.devnull, 'w')
+
+
 def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xml_prefix: str, packing_mode: str = 'original') -> None:
-    reconstructed = 0
     with open(original_grb_path, 'rb') as fin, open(reconstructed_grb_path, 'wb') as fout:
         msg_index = 0
+        reconstructed = 0
         while True:
             with contextlib.redirect_stderr(ess_errnull):
                 gid = codes_grib_new_from_file(fin)
@@ -53,21 +52,22 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                 with contextlib.redirect_stderr(ess_errnull):
                     clone_id = codes_clone(gid)
 
-                # Optional: switch to IEEE packing up front (exact decoded values)
-                force_ieee = (packing_mode in ('ieee32', 'ieee64'))
-                if force_ieee:
-                    with contextlib.redirect_stderr(ess_errnull):
+                # Capture original packing parameters to preserve size/bit layout where possible
+                orig_params = {}
+                with contextlib.redirect_stderr(ess_errnull):
+                    for k in (
+                        'packingType',
+                        'bitsPerValue',
+                        'binaryScaleFactor',
+                        'decimalScaleFactor',
+                        'referenceValue',
+                    ):
                         try:
-                            codes_set(clone_id, 'packingType', 'grid_ieee')
-                        except Exception:
-                            pass
-                        try:
-                            # precision: 1 -> 32-bit, 2 -> 64-bit
-                            codes_set(clone_id, 'precision', 1 if packing_mode == 'ieee32' else 2)
+                            orig_params[k] = codes_get(gid, k)
                         except Exception:
                             pass
 
-                # Load XML for this message; require presence for lossless round-trip
+                # Load XML for this message (lossless intent requires XML for every message)
                 xml_path = OUTPUT_DIR / f"{xml_prefix}_msg_{msg_index}.xml"
                 if not xml_path.exists():
                     raise FileNotFoundError(f"Missing XML for message {msg_index}: {xml_path}")
@@ -78,7 +78,7 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                 if values.size != expected:
                     raise ValueError(f"Value count mismatch for msg {msg_index}: got {values.size}, expected {expected}.")
 
-                # Keep or map missing values depending on packing mode
+                # Keep original packing: map NaN -> message missing value, set bitmap if needed
                 try:
                     msg_missing = codes_get(gid, 'missingValue')
                 except Exception:
@@ -88,24 +88,27 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                     values = values.astype(np.float64, copy=False)
 
                 if np.isnan(values).any():
-                    if packing_mode == 'original':
-                        if not (isinstance(msg_missing, float) and np.isnan(msg_missing)):
-                            values = np.where(np.isnan(values), msg_missing, values)
-                            try:
-                                if codes_is_defined(clone_id, 'bitmapPresent'):
-                                    codes_set(clone_id, 'bitmapPresent', 1)
-                            except Exception:
-                                pass
-                    else:
-                        # In IEEE modes, keep NaNs; no bitmap mapping required
-                        pass
-
-                # In original mode, restore original representation knobs BEFORE setting values
-                if packing_mode == 'original':
-                    with contextlib.redirect_stderr(ess_errnull):
-                        # packing type and template number
+                    if not (isinstance(msg_missing, float) and np.isnan(msg_missing)):
+                        values = np.where(np.isnan(values), msg_missing, values)
                         try:
-                            orig_ptype = codes_get(gid, 'packingType')
+                            if codes_is_defined(clone_id, 'bitmapPresent'):
+                                codes_set(clone_id, 'bitmapPresent', 1)
+                        except Exception:
+                            pass
+
+                # Restore original data representation & packing BEFORE setting values
+                with contextlib.redirect_stderr(ess_errnull):
+                    if packing_mode in ('ieee32','ieee64'):
+                        try:
+                            codes_set(clone_id,'packingType','grid_ieee')
+                        except Exception: pass
+                        try:
+                            codes_set(clone_id,'precision', 1 if packing_mode=='ieee32' else 2)
+                        except Exception: pass
+                    else:
+                        # 1) Force the original packing type & template (when available)
+                        try:
+                            orig_ptype = codes_get(gid, 'packingType')  # e.g., grid_simple, grid_ieee, jpeg, etc.
                             codes_set(clone_id, 'packingType', orig_ptype)
                         except Exception:
                             pass
@@ -114,31 +117,37 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                             codes_set(clone_id, 'dataRepresentationTemplateNumber', drt)
                         except Exception:
                             pass
-                        # Section 5 parameters
-                        for k in ('bitsPerValue', 'binaryScaleFactor', 'decimalScaleFactor', 'referenceValue'):
+
+                        # 2) Restore section 5 knobs exactly (ignore if a key isn't writable for this template)
+                        for k in (
+                            'bitsPerValue',
+                            'binaryScaleFactor',
+                            'decimalScaleFactor',
+                            'referenceValue',
+                        ):
                             try:
                                 v = codes_get(gid, k)
                                 codes_set(clone_id, k, v)
                             except Exception:
                                 pass
+
+                        # 3) Ask ecCodes to keep original packing behavior
                         try:
                             codes_set(clone_id, 'useOriginalPacking', 1)
                         except Exception:
                             pass
 
-                # Set values and write out
                 codes_set_values(clone_id, values)
                 with contextlib.redirect_stderr(ess_errnull):
                     codes_write(clone_id, fout)
                 reconstructed += 1
 
-                # Optional read-back to trip errors early (non-fatal)
+                # Optional sanity check (non-fatal)
                 try:
                     with contextlib.redirect_stderr(ess_errnull):
                         _ = codes_get(clone_id, 'totalLength')
                 except Exception:
                     pass
-
             finally:
                 try:
                     codes_release(clone_id)
@@ -146,19 +155,18 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                     pass
                 codes_release(gid)
             msg_index += 1
-
     print(f"Reconstruction summary: {reconstructed} messages from XML.")
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Reconstruct GRIB2 from XML value dumps (supports multiple files).')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Reconstruct GRIB2 from XML value dumps (supports multiple files).")
     parser.add_argument('--in', dest='in_grib', type=Path, nargs='+', required=False,
                         help='Input GRIB file(s) to clone structure from. You can pass multiple files.')
     parser.add_argument('--out', dest='out_grib', type=Path, nargs='*', default=None,
                         help='Output GRIB path(s). If omitted, defaults to data/reconstructed_<in_stem>.grb2 for each input.')
     parser.add_argument('--prefix', dest='xml_prefix', nargs='*', default=None,
                         help='XML filename prefix(es). If omitted, uses each input stem.')
-    parser.add_argument('--packing', dest='packing', choices=['original', 'ieee32', 'ieee64'], default='original',
+    parser.add_argument('--packing', dest='packing', choices=['original','ieee32','ieee64'], default='original',
                         help='How to pack reconstructed fields: original (default), ieee32, or ieee64.')
     args = parser.parse_args()
 
@@ -168,17 +176,15 @@ if __name__ == '__main__':
     out_paths = []
     prefixes = []
     if args.out_grib and len(args.out_grib) not in (0, len(inputs)):
-        raise SystemExit('--out must be provided once per input or omitted entirely')
+        raise SystemExit("--out must be provided once per input or omitted entirely")
     if args.xml_prefix and len(args.xml_prefix) not in (0, len(inputs)):
-        raise SystemExit('--prefix must be provided once per input or omitted entirely')
+        raise SystemExit("--prefix must be provided once per input or omitted entirely")
 
     for i, in_path in enumerate(inputs):
-        out_path = args.out_grib[i] if args.out_grib else DATA_DIR / f'reconstructed_{in_path.stem}.grb2'
+        out_path = args.out_grib[i] if args.out_grib else DATA_DIR / f"reconstructed_{in_path.stem}.grb2"
         pref = args.xml_prefix[i] if args.xml_prefix else in_path.stem
         out_paths.append(out_path)
         prefixes.append(pref)
 
-    packing_mode = args.packing
-
     for in_path, out_path, pref in zip(inputs, out_paths, prefixes):
-        decode_xml_to_grib(in_path, out_path, pref, packing_mode)
+        decode_xml_to_grib(in_path, out_path, pref, args.packing)

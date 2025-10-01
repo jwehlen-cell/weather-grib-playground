@@ -33,3 +33,25 @@ verify-large:
 
 verify-small:
 	$(PY) tools/verify_roundtrip.py $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/reconstructed_small_subset_500mb.grb2
+
+.PHONY: reconstruct-all-ieee64 recon-small-ieee64 recon-large-ieee64
+
+reconstruct-all-ieee64:
+	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/large_full_1deg.grb2 --packing ieee64
+
+recon-small-ieee64:
+	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 --packing ieee64
+
+recon-large-ieee64:
+	$(PY) $(RECON) --in $(DATA_DIR)/large_full_1deg.grb2 --packing ieee64
+
+	.PHONY: reconstruct-all-ieee32 recon-small-ieee32 recon-large-ieee32
+
+reconstruct-all-ieee32:
+	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/large_full_1deg.grb2 --packing ieee32
+
+recon-small-ieee32:
+	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 --packing ieee32
+
+recon-large-ieee32:
+	$(PY) $(RECON) --in $(DATA_DIR)/large_full_1deg.grb2 --packing ieee32

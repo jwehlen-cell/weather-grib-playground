@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import os
+os.environ.setdefault('ECCODES_LOG_STREAM', os.devnull)
+
 import sys
 from pathlib import Path
 import numpy as np

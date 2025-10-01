@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+import os
+os.environ.setdefault('ECCODES_LOG_STREAM', os.devnull)
+
 import pygrib
 import numpy as np
 from pathlib import Path
+
 
 # Project paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
