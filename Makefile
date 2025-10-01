@@ -7,7 +7,10 @@ OUTDIR := output_xml
 CONVERT := src/weather/convert_grb.py
 RECON   := src/weather/reconstruct_xml.py
 
-.PHONY: xml-all reconstruct-all xml-small xml-large recon-small recon-large verify-large verify-small
+.PHONY: xml-all reconstruct-all xml-small xml-large recon-small recon-large verify-large verify-small verify-small-quant verify-large-quant \
+        reconstruct-all-ieee64 recon-small-ieee64 recon-large-ieee64 \
+        reconstruct-all-ieee32 recon-small-ieee32 recon-large-ieee32 \
+        reconstruct-all-original recon-small-original recon-large-original
 
 xml-all:
 	$(PY) $(CONVERT) --in $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/large_full_1deg.grb2 --outdir $(OUTDIR)
@@ -34,7 +37,15 @@ verify-large:
 verify-small:
 	$(PY) tools/verify_roundtrip.py $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/reconstructed_small_subset_500mb.grb2
 
-.PHONY: reconstruct-all-ieee64 recon-small-ieee64 recon-large-ieee64
+verify-small-quant:
+	$(PY) tools/verify_quantization_bound.py $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/reconstructed_small_subset_500mb.grb2
+
+verify-large-quant:
+	$(PY) tools/verify_quantization_bound.py $(DATA_DIR)/large_full_1deg.grb2 $(DATA_DIR)/reconstructed_large_full_1deg.grb2
+
+.PHONY: reconstruct-all-ieee64 recon-small-ieee64 recon-large-ieee64 \
+        reconstruct-all-ieee32 recon-small-ieee32 recon-large-ieee32 \
+        reconstruct-all-original recon-small-original recon-large-original
 
 reconstruct-all-ieee64:
 	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/large_full_1deg.grb2 --packing ieee64
@@ -45,8 +56,6 @@ recon-small-ieee64:
 recon-large-ieee64:
 	$(PY) $(RECON) --in $(DATA_DIR)/large_full_1deg.grb2 --packing ieee64
 
-	.PHONY: reconstruct-all-ieee32 recon-small-ieee32 recon-large-ieee32
-
 reconstruct-all-ieee32:
 	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/large_full_1deg.grb2 --packing ieee32
 
@@ -55,3 +64,12 @@ recon-small-ieee32:
 
 recon-large-ieee32:
 	$(PY) $(RECON) --in $(DATA_DIR)/large_full_1deg.grb2 --packing ieee32
+
+reconstruct-all-original:
+	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/large_full_1deg.grb2 --packing original
+
+recon-small-original:
+	$(PY) $(RECON) --in $(DATA_DIR)/small_subset_500mb.grb2 --packing original
+
+recon-large-original:
+	$(PY) $(RECON) --in $(DATA_DIR)/large_full_1deg.grb2 --packing original

@@ -1,21 +1,88 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="grib">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           elementFormDefault="qualified" attributeFormDefault="unqualified">
+  <!-- Extended schema for GRIB message dumps -->
+  <xs:simpleType name="rleString">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+  <xs:element name="gribMessage">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="variable" maxOccurs="1">
+        <xs:element name="ident">
           <xs:complexType>
             <xs:sequence>
-              <xs:element name="values" type="xs:string"/>
-              <xs:element name="lat" type="xs:string"/>
-              <xs:element name="lon" type="xs:string"/>
+              <xs:element name="centre" type="xs:string" minOccurs="0"/>
+              <xs:element name="subCentre" type="xs:string" minOccurs="0"/>
+              <xs:element name="discipline" type="xs:int" minOccurs="0"/>
+              <xs:element name="parameterCategory" type="xs:int" minOccurs="0"/>
+              <xs:element name="parameterNumber" type="xs:int" minOccurs="0"/>
+              <xs:element name="shortName" type="xs:string" minOccurs="0"/>
+              <xs:element name="typeOfLevel" type="xs:string" minOccurs="0"/>
+              <xs:element name="level" type="xs:int" minOccurs="0"/>
+              <xs:element name="date">
+                <xs:complexType>
+                  <xs:attribute name="ymd" type="xs:string" use="required"/>
+                  <xs:attribute name="hhmm" type="xs:string" use="optional"/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="step" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="range" type="xs:string" minOccurs="0"/>
+                  </xs:sequence>
+                  <xs:attribute name="type" type="xs:string" use="optional"/>
+                </xs:complexType>
+              </xs:element>
             </xs:sequence>
-            <xs:attribute name="name" type="xs:string" use="required"/>
-            <xs:attribute name="date" type="xs:dateTime" use="required"/>
-            <xs:attribute name="level" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="geometry">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="gridType" type="xs:string"/>
+              <xs:element name="Ni" type="xs:int" minOccurs="0"/>
+              <xs:element name="Nj" type="xs:int" minOccurs="0"/>
+              <xs:element name="latitudeOfFirstGridPointInDegrees" type="xs:double" minOccurs="0"/>
+              <xs:element name="longitudeOfFirstGridPointInDegrees" type="xs:double" minOccurs="0"/>
+              <xs:element name="iDirectionIncrementInDegrees" type="xs:double" minOccurs="0"/>
+              <xs:element name="jDirectionIncrementInDegrees" type="xs:double" minOccurs="0"/>
+              <xs:element name="scanningMode" type="xs:int" minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="representation">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="packingType" type="xs:string" minOccurs="0"/>
+              <xs:element name="dataRepresentationTemplateNumber" type="xs:int" minOccurs="0"/>
+              <xs:element name="bitsPerValue" type="xs:int" minOccurs="0"/>
+              <xs:element name="binaryScaleFactor" type="xs:int" minOccurs="0"/>
+              <xs:element name="decimalScaleFactor" type="xs:int" minOccurs="0"/>
+              <xs:element name="referenceValue" type="xs:double" minOccurs="0"/>
+              <xs:element name="referenceValueHex" type="xs:string" minOccurs="0"/>
+              <xs:element name="missingValue" type="xs:double" minOccurs="0"/>
+              <xs:element name="missingValueHex" type="xs:string" minOccurs="0"/>
+              <xs:element name="secondaryMissingValue" type="xs:double" minOccurs="0"/>
+              <xs:element name="secondaryMissingValueHex" type="xs:string" minOccurs="0"/>
+              <xs:element name="bitmapPresent" type="xs:int" minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="data">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="bitmap" type="rleString" minOccurs="0"/>
+              <xs:element name="values" type="xs:string"/>
+            </xs:sequence>
           </xs:complexType>
         </xs:element>
       </xs:sequence>
+      <xs:attribute name="version" type="xs:int" use="optional"/>
+      <xs:attribute name="index" type="xs:int" use="optional"/>
     </xs:complexType>
   </xs:element>
 </xs:schema>
