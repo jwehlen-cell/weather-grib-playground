@@ -216,6 +216,50 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
                         xf.write(f'    <secondaryMissingValueHex>{mv2_hex}</secondaryMissingValueHex>\n')
                     if bmppr is not None:
                         xf.write(f'    <bitmapPresent>{bmppr}</bitmapPresent>\n')
+
+                    # Dump all keys/arrays from the dataRepresentation namespace for exact reconstruction
+                    try:
+                        it = codes_keys_iterator_new(gid, 'dataRepresentation')
+                        if it is not None:
+                            xf.write('    <dataRepresentationKeys>\n')
+                            while codes_keys_iterator_next(it):
+                                kname = codes_keys_iterator_get_name(it)
+                                # Some keys can be extremely large or derived; we skip the actual data values
+                                if kname in ('values',):
+                                    continue
+                                try:
+                                    size = None
+                                    try:
+                                        size = codes_get_size(gid, kname)
+                                    except Exception:
+                                        size = None
+                                    if size and size > 1:
+                                        arr = codes_get_array(gid, kname)
+                                        # Join as comma-separated; keep integers as-is, floats with repr
+                                        if arr is None:
+                                            pass
+                                        else:
+                                            vals = []
+                                            for a in arr:
+                                                if isinstance(a, float):
+                                                    vals.append(repr(float(a)))
+                                                else:
+                                                    vals.append(str(int(a)))
+                                            xf.write(f'      <array name="{kname}">{",".join(vals)}</array>\n')
+                                    else:
+                                        val = codes_get(gid, kname)
+                                        if isinstance(val, float):
+                                            xf.write(f'      <key name="{kname}">{repr(float(val))}</key>\n')
+                                        else:
+                                            xf.write(f'      <key name="{kname}">{val}</key>\n')
+                                except Exception:
+                                    # Ignore keys we cannot read
+                                    pass
+                            codes_keys_iterator_delete(it)
+                            xf.write('    </dataRepresentationKeys>\n')
+                    except Exception:
+                        pass
+
                     xf.write('  </representation>\n')
 
                     xf.write('  <data>\n')
@@ -241,7 +285,7 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Dump GRIB messages to rich XML values and raw sidecars.")
+    p = argparse.ArgumentParser(description="Dump GRIB messages to rich XML values and metadata.")
     p.add_argument('--in', dest='in_grib', type=Path, nargs='+', required=False,
                    help='Input GRIB file(s). You can pass multiple files.')
     p.add_argument('--outdir', dest='outdir', type=Path, default=OUTPUT_XML,

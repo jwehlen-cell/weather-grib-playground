@@ -68,6 +68,32 @@
               <xs:element name="secondaryMissingValue" type="xs:double" minOccurs="0"/>
               <xs:element name="secondaryMissingValueHex" type="xs:string" minOccurs="0"/>
               <xs:element name="bitmapPresent" type="xs:int" minOccurs="0"/>
+              <xs:element name="dataRepresentationKeys" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="key" minOccurs="0" maxOccurs="unbounded">
+                      <xs:complexType>
+                        <xs:simpleContent>
+                          <xs:extension base="xs:string">
+                            <xs:attribute name="name" type="xs:string" use="required"/>
+                            <xs:attribute name="type" type="xs:string" use="optional"/>
+                          </xs:extension>
+                        </xs:simpleContent>
+                      </xs:complexType>
+                    </xs:element>
+                    <xs:element name="array" minOccurs="0" maxOccurs="unbounded">
+                      <xs:complexType>
+                        <xs:simpleContent>
+                          <xs:extension base="xs:string">
+                            <xs:attribute name="name" type="xs:string" use="required"/>
+                            <xs:attribute name="type" type="xs:string" use="optional"/>
+                          </xs:extension>
+                        </xs:simpleContent>
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
             </xs:sequence>
           </xs:complexType>
         </xs:element>

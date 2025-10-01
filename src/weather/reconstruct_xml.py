@@ -79,6 +79,51 @@ def _read_from_xml(xml_path: Path):
         'secondaryMissingValueHex': gx('representation/secondaryMissingValueHex', str),
     }
 
+    # Capture full Section 5 namespace dump (<dataRepresentationKeys>)
+    repr_keys = {}
+    repr_arrays = {}
+    drk = root.find('representation/dataRepresentationKeys')
+    if drk is not None:
+        # Scalar keys
+        for kn in drk.findall('key'):
+            name = kn.get('name')
+            if not name:
+                continue
+            txt = (kn.text or '').strip()
+            if txt == '':
+                continue
+            # Prefer int, then float, else keep string
+            try:
+                val = int(txt)
+            except Exception:
+                try:
+                    val = float(txt)
+                except Exception:
+                    val = txt
+            repr_keys[name] = val
+        # Array keys
+        for an in drk.findall('array'):
+            name = an.get('name')
+            if not name:
+                continue
+            txt = (an.text or '').strip()
+            if txt == '':
+                continue
+            parts = [p.strip() for p in txt.split(',') if p.strip() != '']
+            arr = []
+            for p in parts:
+                try:
+                    arr.append(int(p))
+                except Exception:
+                    try:
+                        arr.append(float(p))
+                    except Exception:
+                        # skip
+                        pass
+            repr_arrays[name] = arr
+    meta['repr_keys'] = repr_keys
+    meta['repr_arrays'] = repr_arrays
+
     # Optional bitmap RLE -> boolean mask
     bnode = root.find('data/bitmap')
     if bnode is not None and bnode.text:
@@ -167,6 +212,19 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                                 codes_set(clone_id, 'packingType', meta['packingType'])
                             if meta.get('dataRepresentationTemplateNumber') is not None:
                                 codes_set(clone_id, 'dataRepresentationTemplateNumber', meta['dataRepresentationTemplateNumber'])
+                            # Restore full Section 5 namespace keys/arrays when provided
+                            rk = meta.get('repr_keys') or {}
+                            ra = meta.get('repr_arrays') or {}
+                            for name, val in rk.items():
+                                try:
+                                    codes_set(clone_id, name, val)
+                                except Exception:
+                                    pass
+                            for name, arr in ra.items():
+                                try:
+                                    codes_set_array(clone_id, name, arr)
+                                except Exception:
+                                    pass
                             # Integer knobs
                             for k in ('bitsPerValue', 'binaryScaleFactor', 'decimalScaleFactor'):
                                 if meta.get(k) is not None:
