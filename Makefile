@@ -7,7 +7,7 @@ OUTDIR := output_xml
 CONVERT := src/weather/convert_grb.py
 RECON   := src/weather/reconstruct_xml.py
 
-.PHONY: xml-all reconstruct-all xml-small xml-large recon-small recon-large verify-large verify-small verify-small-quant verify-large-quant \
+.PHONY: xml-all reconstruct-all xml-small xml-large recon-small recon-large verify-large verify-small verify-small-quant verify-large-quant verify-all-quant \
         reconstruct-all-ieee64 recon-small-ieee64 recon-large-ieee64 \
         reconstruct-all-ieee32 recon-small-ieee32 recon-large-ieee32 \
         reconstruct-all-original recon-small-original recon-large-original
@@ -41,6 +41,10 @@ verify-small-quant:
 	$(PY) tools/verify_quantization_bound.py $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/reconstructed_small_subset_500mb.grb2
 
 verify-large-quant:
+	$(PY) tools/verify_quantization_bound.py $(DATA_DIR)/large_full_1deg.grb2 $(DATA_DIR)/reconstructed_large_full_1deg.grb2
+
+verify-all-quant:
+	$(PY) tools/verify_quantization_bound.py $(DATA_DIR)/small_subset_500mb.grb2 $(DATA_DIR)/reconstructed_small_subset_500mb.grb2
 	$(PY) tools/verify_quantization_bound.py $(DATA_DIR)/large_full_1deg.grb2 $(DATA_DIR)/reconstructed_large_full_1deg.grb2
 
 .PHONY: reconstruct-all-ieee64 recon-small-ieee64 recon-large-ieee64 \

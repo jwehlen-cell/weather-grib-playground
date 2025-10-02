@@ -48,6 +48,11 @@
               <xs:element name="longitudeOfFirstGridPointInDegrees" type="xs:double" minOccurs="0"/>
               <xs:element name="iDirectionIncrementInDegrees" type="xs:double" minOccurs="0"/>
               <xs:element name="jDirectionIncrementInDegrees" type="xs:double" minOccurs="0"/>
+              <!-- Optional raw-integer geometry keys (exact GRIB integers, e.g., micro-degrees) -->
+              <xs:element name="latitudeOfFirstGridPoint" type="xs:int" minOccurs="0"/>
+              <xs:element name="longitudeOfFirstGridPoint" type="xs:int" minOccurs="0"/>
+              <xs:element name="iDirectionIncrement" type="xs:int" minOccurs="0"/>
+              <xs:element name="jDirectionIncrement" type="xs:int" minOccurs="0"/>
               <xs:element name="scanningMode" type="xs:int" minOccurs="0"/>
             </xs:sequence>
           </xs:complexType>

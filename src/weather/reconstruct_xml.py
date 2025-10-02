@@ -218,13 +218,54 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                 # In original mode, prefer representation from XML, then fall back to source gid
                 if packing_mode == 'original':
                     with contextlib.redirect_stderr(_ESS_NULL):
-                        # Prefer meta from XML when present
+                        # Prefer meta from XML when present (strict order to avoid ecCodes re-scaling)
                         try:
+                            # 1) Base template & packing type
                             if meta.get('packingType'):
                                 codes_set(clone_id, 'packingType', meta['packingType'])
                             if meta.get('dataRepresentationTemplateNumber') is not None:
                                 codes_set(clone_id, 'dataRepresentationTemplateNumber', meta['dataRepresentationTemplateNumber'])
-                            # Restore full Section 5 namespace keys/arrays when provided
+
+                            # 2) Scalar section-5 knobs FIRST
+                            for k in ('bitsPerValue', 'binaryScaleFactor', 'decimalScaleFactor'):
+                                if meta.get(k) is not None:
+                                    codes_set(clone_id, k, meta[k])
+
+                            # 3) Floats via hex-preferred
+                            ref_hex = meta.get('referenceValueHex')
+                            if ref_hex:
+                                try:
+                                    rv = np.frombuffer(bytes.fromhex(ref_hex), dtype='>f4')[0]
+                                    codes_set(clone_id, 'referenceValue', float(rv))
+                                except Exception:
+                                    if meta.get('referenceValue') is not None:
+                                        codes_set(clone_id, 'referenceValue', meta['referenceValue'])
+                            elif meta.get('referenceValue') is not None:
+                                codes_set(clone_id, 'referenceValue', meta['referenceValue'])
+
+                            mv_hex = meta.get('missingValueHex')
+                            if mv_hex:
+                                try:
+                                    mv = np.frombuffer(bytes.fromhex(mv_hex), dtype='>f4')[0]
+                                    codes_set(clone_id, 'missingValue', float(mv))
+                                except Exception:
+                                    if meta.get('missingValue') is not None:
+                                        codes_set(clone_id, 'missingValue', meta['missingValue'])
+                            elif meta.get('missingValue') is not None:
+                                codes_set(clone_id, 'missingValue', meta['missingValue'])
+
+                            mv2_hex = meta.get('secondaryMissingValueHex')
+                            if mv2_hex:
+                                try:
+                                    mv2 = np.frombuffer(bytes.fromhex(mv2_hex), dtype='>f4')[0]
+                                    codes_set(clone_id, 'secondaryMissingValue', float(mv2))
+                                except Exception:
+                                    if meta.get('secondaryMissingValue') is not None:
+                                        codes_set(clone_id, 'secondaryMissingValue', meta['secondaryMissingValue'])
+                            elif meta.get('secondaryMissingValue') is not None:
+                                codes_set(clone_id, 'secondaryMissingValue', meta['secondaryMissingValue'])
+
+                            # 4) Restore full Section 5 namespace keys/arrays (group/diff metadata)
                             rk = meta.get('repr_keys') or {}
                             ra = meta.get('repr_arrays') or {}
                             for name, val in rk.items():
@@ -237,52 +278,21 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                                     codes_set_array(clone_id, name, arr)
                                 except Exception:
                                     pass
-                            # If codedValues are provided, set them directly to avoid re-quantization
+
+                            # 5) Now set coded integer stream (avoid re-quantization)
                             coded_vals = meta.get('codedValues')
                             if coded_vals:
                                 try:
                                     codes_set_array(clone_id, 'codedValues', coded_vals)
-                                    # When coded values are set, do not also set decoded values later
-                                    values = None
+                                    values = None  # skip decoded values later
                                 except Exception:
                                     pass
-                            # Integer knobs
-                            for k in ('bitsPerValue', 'binaryScaleFactor', 'decimalScaleFactor'):
-                                if meta.get(k) is not None:
-                                    codes_set(clone_id, k, meta[k])
-                            # referenceValue via hex preferred
-                            ref_hex = meta.get('referenceValueHex')
-                            if ref_hex:
-                                try:
-                                    rv = np.frombuffer(bytes.fromhex(ref_hex), dtype='>f4')[0]
-                                    codes_set(clone_id, 'referenceValue', float(rv))
-                                except Exception:
-                                    if meta.get('referenceValue') is not None:
-                                        codes_set(clone_id, 'referenceValue', meta['referenceValue'])
-                            elif meta.get('referenceValue') is not None:
-                                codes_set(clone_id, 'referenceValue', meta['referenceValue'])
-                            # missingValue via hex preferred
-                            mv_hex = meta.get('missingValueHex')
-                            if mv_hex:
-                                try:
-                                    mv = np.frombuffer(bytes.fromhex(mv_hex), dtype='>f4')[0]
-                                    codes_set(clone_id, 'missingValue', float(mv))
-                                except Exception:
-                                    if meta.get('missingValue') is not None:
-                                        codes_set(clone_id, 'missingValue', meta['missingValue'])
-                            elif meta.get('missingValue') is not None:
-                                codes_set(clone_id, 'missingValue', meta['missingValue'])
-                            # secondaryMissingValue via hex preferred
-                            mv2_hex = meta.get('secondaryMissingValueHex')
-                            if mv2_hex:
-                                try:
-                                    mv2 = np.frombuffer(bytes.fromhex(mv2_hex), dtype='>f4')[0]
-                                    codes_set(clone_id, 'secondaryMissingValue', float(mv2))
-                                except Exception:
-                                    if meta.get('secondaryMissingValue') is not None:
-                                        codes_set(clone_id, 'secondaryMissingValue', meta['secondaryMissingValue'])
-                            elif meta.get('secondaryMissingValue') is not None:
-                                codes_set(clone_id, 'secondaryMissingValue', meta['secondaryMissingValue'])
+
+                            # 6) Keep packing as-is
+                            try:
+                                codes_set(clone_id, 'useOriginalPacking', 1)
+                            except Exception:
+                                pass
                         except Exception:
                             pass
                         # Fallback to original gid knobs
@@ -300,10 +310,6 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                                     codes_set(clone_id, k, v)
                             except Exception:
                                 pass
-                        try:
-                            codes_set(clone_id, 'useOriginalPacking', 1)
-                        except Exception:
-                            pass
 
                 # Write values
                 with contextlib.redirect_stderr(_ESS_NULL):
