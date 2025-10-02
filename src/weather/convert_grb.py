@@ -260,6 +260,31 @@ def dump_grib_to_xml(in_grib: Path, outdir: Path, prefix: str) -> int:
                     except Exception:
                         pass
 
+                    # Dump coded integer stream if available (enables exact reconstruction for complex packing)
+                    try:
+                        csize = None
+                        try:
+                            csize = codes_get_size(gid, 'codedValues')
+                        except Exception:
+                            csize = None
+                        if csize and csize > 0 and csize < 100000000:  # sanity cap
+                            cvals = None
+                            try:
+                                cvals = codes_get_array(gid, 'codedValues')
+                            except Exception:
+                                cvals = None
+                            if cvals is not None and len(cvals) == csize:
+                                xf.write('    <codedValues>')
+                                # write in chunks to avoid huge lines
+                                chunk = 100000
+                                for start in range(0, csize, chunk):
+                                    if start > 0:
+                                        xf.write('\n')
+                                    part = ','.join(str(int(v)) for v in cvals[start:start+chunk])
+                                    xf.write(part)
+                                xf.write('</codedValues>\n')
+                    except Exception:
+                        pass
                     xf.write('  </representation>\n')
 
                     xf.write('  <data>\n')

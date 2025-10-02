@@ -124,6 +124,18 @@ def _read_from_xml(xml_path: Path):
     meta['repr_keys'] = repr_keys
     meta['repr_arrays'] = repr_arrays
 
+    # Optional codedValues (comma/newline separated integers)
+    coded_vals = None
+    cvnode = root.find('representation/codedValues')
+    if cvnode is not None and (cvnode.text or '').strip():
+        txt = cvnode.text.strip()
+        parts = [p.strip() for p in txt.replace('\n', ',').split(',') if p.strip()]
+        try:
+            coded_vals = [int(p) for p in parts]
+        except Exception:
+            coded_vals = None
+    meta['codedValues'] = coded_vals
+
     # Optional bitmap RLE -> boolean mask
     bnode = root.find('data/bitmap')
     if bnode is not None and bnode.text:
@@ -225,6 +237,15 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
                                     codes_set_array(clone_id, name, arr)
                                 except Exception:
                                     pass
+                            # If codedValues are provided, set them directly to avoid re-quantization
+                            coded_vals = meta.get('codedValues')
+                            if coded_vals:
+                                try:
+                                    codes_set_array(clone_id, 'codedValues', coded_vals)
+                                    # When coded values are set, do not also set decoded values later
+                                    values = None
+                                except Exception:
+                                    pass
                             # Integer knobs
                             for k in ('bitsPerValue', 'binaryScaleFactor', 'decimalScaleFactor'):
                                 if meta.get(k) is not None:
@@ -286,7 +307,8 @@ def decode_xml_to_grib(original_grb_path: Path, reconstructed_grb_path: Path, xm
 
                 # Write values
                 with contextlib.redirect_stderr(_ESS_NULL):
-                    codes_set_values(clone_id, values)
+                    if values is not None:
+                        codes_set_values(clone_id, values)
                     codes_write(clone_id, fout)
                 reconstructed += 1
 
